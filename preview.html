@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Rainbow Road Math Racer</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+tailwind.config={theme:{extend:{fontFamily:{sans:['ui-sans-serif','system-ui','-apple-system','BlinkMacSystemFont','Segoe UI','Tahoma','sans-serif']}}}};
+</script>
+<style>
+*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#050816;font-family:ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",Tahoma,sans-serif}
+body{touch-action:none}
+#game{position:fixed;inset:0;width:100%;height:100%;display:block}
+.glass{background:linear-gradient(135deg,rgba(255,255,255,.17),rgba(255,255,255,.06));backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);border:1px solid rgba(255,255,255,.24);box-shadow:0 16px 50px rgba(0,0,0,.28),inset 0 1px rgba(255,255,255,.2)}
+.rainbow-text{background:linear-gradient(90deg,#ff3158,#ff9d2e,#ffe44d,#39f078,#3ddcff,#7774ff,#e86bff,#ff3158);background-size:250% auto;-webkit-background-clip:text;background-clip:text;color:transparent;animation:rainbow 4s linear infinite}
+@keyframes rainbow{to{background-position:250% center}}
+.pulse{animation:pulse 1.1s ease-in-out infinite}.bounce{animation:bounce .8s ease-in-out infinite alternate}.pop{animation:pop .35s cubic-bezier(.2,1.5,.4,1)}
+@keyframes pulse{50%{transform:scale(1.04);box-shadow:0 0 30px rgba(255,255,255,.35)}}
+@keyframes bounce{to{transform:translateY(-8px)}}
+@keyframes pop{0%{opacity:0;transform:scale(.8)}100%{opacity:1;transform:scale(1)}}
+.shake{animation:shake .35s ease-in-out}
+@keyframes shake{20%{transform:translateX(-12px)}40%{transform:translateX(10px)}60%{transform:translateX(-7px)}80%{transform:translateX(5px)}}
+button{font:inherit;-webkit-tap-highlight-color:transparent}
+.choice{min-height:64px;transition:.15s transform,.15s filter}
+.choice:active{transform:scale(.96)}
+.hidden-ui{display:none!important}
+#touchControls{padding-bottom:max(14px,env(safe-area-inset-bottom))}
+@media(max-width:640px){
+ .hud-label{font-size:10px}.hud-value{font-size:13px}
+ .modal-card{max-height:88vh;overflow:auto}
+}
+</style>
+</head>
+<body>
+<canvas id="game"></canvas>
+
+<div id="hud" class="absolute inset-x-0 top-0 p-2 sm:p-4 pointer-events-none">
+  <div class="mx-auto max-w-6xl flex gap-2 sm:gap-3 items-start justify-between">
+    <div class="glass rounded-2xl px-3 py-2 sm:px-4 sm:py-3 text-white min-w-0">
+      <div class="flex gap-3 sm:gap-5 items-center">
+        <div><div class="hud-label text-white/60 font-bold">คะแนน</div><div id="score" class="hud-value font-black text-lg sm:text-2xl">0</div></div>
+        <div><div class="hud-label text-white/60 font-bold">คอมโบ</div><div id="combo" class="hud-value font-black text-lg sm:text-2xl text-yellow-300">x1</div></div>
+        <div><div class="hud-label text-white/60 font-bold">เหรียญ</div><div id="coins" class="hud-value font-black text-lg sm:text-2xl text-yellow-300">0</div></div>
+      </div>
+    </div>
+    <div class="glass rounded-2xl px-3 py-2 sm:px-4 sm:py-3 text-white min-w-[150px] sm:min-w-[250px]">
+      <div class="flex items-center justify-between gap-2">
+        <span class="hud-label text-white/70 font-bold">จุดตรวจ</span>
+        <span id="progressText" class="hud-value font-black">0/100</span>
+        <button id="muteBtn" class="pointer-events-auto rounded-xl bg-white/10 px-2 py-1 hover:bg-white/20" title="เปิด/ปิดเสียง">🔊</button>
+      </div>
+      <div class="mt-2 h-2 rounded-full bg-black/30 overflow-hidden"><div id="progressBar" class="h-full rounded-full bg-gradient-to-r from-cyan-300 via-yellow-300 to-pink-400" style="width:0%"></div></div>
+      <div class="mt-2 flex items-center gap-2"><span class="text-xs font-bold">⚡ ไนโตร</span><div class="flex-1 h-2 rounded-full bg-black/30"><div id="nitroBar" class="h-full rounded-full bg-gradient-to-r from-orange-400 to-red-500" style="width:0%"></div></div><span id="nitroText" class="text-xs font-black">0%</span></div>
+    </div>
+  </div>
+</div>
+
+<div id="touchControls" class="absolute inset-x-0 bottom-0 px-3 pointer-events-none flex justify-between items-end">
+  <div class="flex gap-2 pointer-events-auto">
+    <button id="leftBtn" class="glass w-16 h-16 sm:w-20 sm:h-20 rounded-3xl text-3xl text-white active:scale-95">◀</button>
+    <button id="rightBtn" class="glass w-16 h-16 sm:w-20 sm:h-20 rounded-3xl text-3xl text-white active:scale-95">▶</button>
+  </div>
+  <button id="nitroBtn" class="pointer-events-auto glass w-24 h-16 sm:w-28 sm:h-20 rounded-3xl text-white font-black text-lg bg-gradient-to-br from-orange-500/40 to-red-600/40 active:scale-95">⚡<br><span class="text-xs">NITRO</span></button>
+</div>
+
+<div id="startModal" class="absolute inset-0 flex items-center justify-center p-4 bg-black/25">
+ <div class="modal-card glass rounded-[2rem] w-full max-w-xl p-5 sm:p-8 text-white pop">
+   <div class="text-center">
+     <div class="text-5xl sm:text-7xl mb-2 bounce">🏎️</div>
+     <h1 class="rainbow-text font-black text-4xl sm:text-6xl leading-tight">Rainbow Road<br>Math Racer</h1>
+     <p class="mt-2 text-white/80 font-bold">เกมแข่งรถบวกลบเลขสายรุ้ง</p>
+   </div>
+   <div class="mt-5 grid grid-cols-3 gap-2">
+    <button data-diff="easy" class="diff glass rounded-2xl p-3 text-center hover:bg-white/20 ring-2 ring-cyan-300"><b>ง่าย</b><small class="block text-white/60">1–10</small></button>
+    <button data-diff="medium" class="diff glass rounded-2xl p-3 text-center hover:bg-white/20"><b>กลาง</b><small class="block text-white/60">1–20</small></button>
+    <button data-diff="hard" class="diff glass rounded-2xl p-3 text-center hover:bg-white/20"><b>ยาก</b><small class="block text-white/60">1–100</small></button>
+   </div>
+   <div class="mt-5 rounded-2xl bg-black/20 p-4 text-sm sm:text-base text-white/80 leading-relaxed">
+    <b class="text-white">วิธีเล่น</b><br>
+    🏁 ขับบนถนน 3 เลน หลบกล้วยและเปลือกหอย<br>
+    🪙 เก็บเหรียญเพื่อเพิ่มคะแนนและเติมไนโตร<br>
+    ⚡ กด <b>Space</b> หรือปุ่ม NITRO เมื่อไนโตร ≥ 30%<br>
+    🧠 ผ่านจุดตรวจด้วยการตอบโจทย์ให้ครบ 100 ข้อ<br>
+    ⌨️ ใช้ <b>← →</b> เปลี่ยนเลน และ <b>1–4</b> เลือกคำตอบ
+   </div>
+   <button id="startBtn" class="mt-5 w-full rounded-2xl py-4 font-black text-xl text-white bg-gradient-to-r from-pink-500 via-purple-500 to-cyan-500 shadow-xl hover:brightness-110 active:scale-[.98]">🚦 Start Engine</button>
+ </div>
+</div>
+
+<div id="questionModal" class="absolute inset-0 hidden-ui flex items-center justify-center p-4 bg-black/35">
+ <div id="questionCard" class="modal-card glass rounded-[2rem] w-full max-w-2xl p-5 sm:p-8 text-white pop">
+  <div class="text-center">
+   <div class="inline-block px-5 py-2 rounded-full bg-gradient-to-r from-cyan-400/50 to-purple-500/50 border border-white/20 font-black">🏁 จุดตรวจคณิตศาสตร์</div>
+   <div id="qCounter" class="mt-3 text-white/70 font-bold">โจทย์ข้อที่ 1 / 100</div>
+   <div id="question" class="mt-3 text-4xl sm:text-6xl font-black tracking-tight">12 + 8 = ?</div>
+  </div>
+  <div id="choices" class="mt-6 grid grid-cols-2 gap-3"></div>
+  <div id="retryText" class="hidden-ui mt-4 text-center text-red-300 font-bold">ลองอีกครั้ง! 🏎️ คอมโบถูกรีเซ็ต</div>
+ </div>
+</div>
+
+<div id="feverBanner" class="absolute inset-x-0 top-1/3 hidden-ui pointer-events-none text-center">
+ <div class="inline-block glass rounded-[2rem] px-8 py-6 pop">
+  <div class="text-5xl">🌈⚡</div><div class="rainbow-text text-4xl sm:text-6xl font-black">BONUS FEVER!</div>
+  <div id="feverSub" class="text-white font-black text-lg">10 คำตอบถูก! ความเร็ว x2</div>
+ </div>
+</div>
+
+<div id="victoryModal" class="absolute inset-0 hidden-ui flex items-center justify-center p-4 bg-black/45">
+ <div class="modal-card glass rounded-[2rem] w-full max-w-xl p-6 sm:p-8 text-white text-center pop">
+  <div class="text-7xl bounce">🏆</div>
+  <h2 class="rainbow-text text-4xl sm:text-5xl font-black mt-2">FINISH!</h2>
+  <p class="text-white/80 font-bold">พิชิตถนนสายรุ้งครบ 100 ข้อแล้ว!</p>
+  <div id="stars" class="text-4xl mt-3">⭐⭐⭐</div>
+  <div class="mt-5 grid grid-cols-3 gap-2">
+   <div class="rounded-2xl bg-black/20 p-3"><div class="text-xs text-white/60">คะแนน</div><b id="finalScore" class="text-xl">0</b></div>
+   <div class="rounded-2xl bg-black/20 p-3"><div class="text-xs text-white/60">ความถูกต้อง</div><b id="accuracy" class="text-xl">0%</b></div>
+   <div class="rounded-2xl bg-black/20 p-3"><div class="text-xs text-white/60">เวลา</div><b id="timeTaken" class="text-xl">0:00</b></div>
+  </div>
+  <button id="againBtn" class="mt-5 w-full rounded-2xl py-4 font-black text-lg bg-gradient-to-r from-pink-500 via-purple-500 to-cyan-500">🔁 แข่งอีกครั้ง</button>
+ </div>
+</div>
+
+<script>
+"use strict";
+const canvas=document.getElementById("game"),ctx=canvas.getContext("2d");
+let W=innerWidth,H=innerHeight,DPR=Math.min(devicePixelRatio||1,2);
+function resize(){W=innerWidth;H=innerHeight;DPR=Math.min(devicePixelRatio||1,2);canvas.width=W*DPR;canvas.height=H*DPR;canvas.style.width=W+"px";canvas.style.height=H+"px";ctx.setTransform(DPR,0,0,DPR,0,0)} addEventListener("resize",resize);resize();
+
+class SoundFX{
+ constructor(){this.ctx=null;this.muted=false}
+ init(){if(!this.ctx)this.ctx=new (window.AudioContext||window.webkitAudioContext)();if(this.ctx.state==="suspended")this.ctx.resume()}
+ tone(freq,dur,type="sine",vol=.05,when=0,endFreq=null){if(this.muted)return;this.init();const c=this.ctx,t=c.currentTime+when,o=c.createOscillator(),g=c.createGain();o.type=type;o.frequency.setValueAtTime(freq,t);if(endFreq)o.frequency.exponentialRampToValueAtTime(Math.max(30,endFreq),t+dur);g.gain.setValueAtTime(.0001,t);g.gain.exponentialRampToValueAtTime(vol,t+.012);g.gain.exponentialRampToValueAtTime(.0001,t+dur);o.connect(g).connect(c.destination);o.start(t);o.stop(t+dur+.03)}
+click(){this.tone(480,.06,"square",.025);this.tone(720,.05,"sine",.018,.035)}
+correct(){[523,659,784,1047].forEach((f,i)=>this.tone(f,.16,"sine",.055,i*.065))}
+wrong(){this.tone(180,.35,"sawtooth",.07);this.tone(110,.4,"square",.035,.06)}
+nitro(){this.tone(120,.6,"sawtooth",.055,0,900);this.tone(240,.45,"sine",.04,.08,1300)}
+coin(){this.tone(988,.08,"triangle",.05);this.tone(1480,.13,"triangle",.045,.08)}
+hit(){this.tone(95,.3,"sawtooth",.08,0,45);this.tone(55,.35,"square",.035,.03)}
+win(){[523,659,784,1047,1319,1568].forEach((f,i)=>this.tone(f,.25,"triangle",.055,i*.12));this.tone(1047,.7,"sine",.04,.72,1568)}
+}
+const sfx=new SoundFX();
+
+const state={
+ running:false,paused:false,diff:"easy",lane:0,targetLane:0,score:0,combo:1,coins:0,nitro:0,
+ question:0,correct:0,wrong:0,waiting:false,fever:false,feverUntil:0,startTime:0,
+ speed:0.00045,roadPos:0,shake:0,last:performance.now(),spawnT:0,
+ objects:[],particles:[],clouds:[],palms:[],rainbowShift:0
+};
+for(let i=0;i<12;i++)state.clouds.push({x:Math.random()*W,y:Math.random()*H*.34,r:25+Math.random()*45,s:.02+Math.random()*.03});
+for(let i=0;i<10;i++)state.palms.push({x:Math.random()*W,y:.58+Math.random()*.18,s:.6+Math.random()*.7});
+
+function clamp(v,a,b){return Math.max(a,Math.min(b,v))}
+function rand(a,b){return Math.floor(Math.random()*(b-a+1))+a}
+function choice(a){return a[Math.floor(Math.random()*a.length)]}
+function fmtTime(ms){let sec=Math.floor(ms/1000),m=Math.floor(sec/60),ss=String(sec%60).padStart(2,"0");return `${m}:${ss}`}
+function laneX(lane,z=1){const horizonY=H*.47,bottomY=H*.92;const center=W/2;const halfBottom=Math.min(W*.46,520),halfTop=Math.min(W*.09,105);const half=halfTop+(halfBottom-halfTop)*z;return center+lane*half*.62}
+function roadY(z){return H*.47+(H*.48)*Math.pow(z,1.7)}
+function roundRect(c,x,y,w,h,r){c.beginPath();c.roundRect(x,y,w,h,r);c.fill()}
+
+function drawSky(t){
+ const hue=state.fever?((t*.04)%360):0;
+ const g=ctx.createLinearGradient(0,0,0,H*.58);
+ g.addColorStop(0,`hsl(${220+hue},75%,55%)`);g.addColorStop(.55,`hsl(${195+hue},78%,72%)`);g.addColorStop(1,`hsl(${180+hue},75%,88%)`);
+ ctx.fillStyle=g;ctx.fillRect(0,0,W,H);
+ // sun
+ const sg=ctx.createRadialGradient(W*.78,H*.18,2,W*.78,H*.18,110);sg.addColorStop(0,"rgba(255,255,220,.9)");sg.addColorStop(1,"rgba(255,255,220,0)");
+ ctx.fillStyle=sg;ctx.fillRect(W*.62,H*.02,W*.32,H*.35);
+ // clouds
+ for(const c of state.clouds){c.x-=c.s*state.speed/0.00045*1.2*60;if(c.x<-150)c.x=W+100;
+  ctx.fillStyle="rgba(255,255,255,.78)";ctx.beginPath();ctx.arc(c.x,c.y,c.r,0,Math.PI*2);ctx.arc(c.x+c.r*.8,c.y-10,c.r*.75,0,Math.PI*2);ctx.arc(c.x+c.r*1.5,c.y+5,c.r*.55,0,Math.PI*2);ctx.fill();
+ }
+ // hills
+ const hg=ctx.createLinearGradient(0,H*.42,0,H*.67);hg.addColorStop(0,"#5bd56e");hg.addColorStop(1,"#16834f");ctx.fillStyle=hg;
+ ctx.beginPath();ctx.moveTo(0,H*.55);for(let x=0;x<=W;x+=60)ctx.quadraticCurveTo(x+30,H*(.43+Math.sin(x*.013)*.04),x+60,H*.55);ctx.lineTo(W,H*.72);ctx.lineTo(0,H*.72);ctx.fill();
+ // palms
+ for(const p of state.palms){let x=p.x%W,y=H*p.y,sc=p.s;ctx.strokeStyle="#71412a";ctx.lineWidth=8*sc;ctx.beginPath();ctx.moveTo(x,y+55*sc);ctx.quadraticCurveTo(x+12*sc,y+18*sc,x-3*sc,y);ctx.stroke();ctx.fillStyle="#26a95b";for(let a=0;a<6;a++){ctx.beginPath();ctx.ellipse(x,y,10*sc,42*sc,a*Math.PI/3,0,Math.PI*2);ctx.fill()}}
+ // giant rainbow arch
+ const cx=W*.5,cy=H*.48,rx=W*.38,ry=H*.29;
+ const colors=["#ff3d5a","#ff9d27","#ffe94a","#3fe879","#32d9ff","#666cff"];
+ for(let i=0;i<6;i++){ctx.strokeStyle=colors[i];ctx.lineWidth=Math.max(5,16-i*2);ctx.globalAlpha=.82;ctx.beginPath();ctx.ellipse(cx,cy,rx-i*12,ry-i*8,0,Math.PI,Math.PI*2);ctx.stroke()}ctx.globalAlpha=1;
+}
+
+function drawTrack(t){
+ const horizon=H*.47,bottom=H*1.05;
+ // surrounding void
+ ctx.fillStyle="#101735";ctx.fillRect(0,horizon,W,H-horizon);
+ // road bands
+ const colors=["#ff3158","#ff9f2f","#ffe64a","#39e978","#37dfff","#7269ff"];
+ for(let i=0;i<6;i++){
+  const z1=(i/6),z2=((i+1)/6);
+  const y1=roadY(z1),y2=roadY(z2);
+  const half1=Math.min(W*.09,105)+(Math.min(W*.46,520)-Math.min(W*.09,105))*z1;
+  const half2=Math.min(W*.09,105)+(Math.min(W*.46,520)-Math.min(W*.09,105))*z2;
+  ctx.fillStyle=colors[i];ctx.globalAlpha=.9;
+  ctx.beginPath();ctx.moveTo(W/2-half1,y1);ctx.lineTo(W/2+half1,y1);ctx.lineTo(W/2+half2,y2);ctx.lineTo(W/2-half2,y2);ctx.closePath();ctx.fill();
+ }
+ ctx.globalAlpha=1;
+ // neon lane lines
+ for(let l=-1;l<=1;l+=2){ctx.strokeStyle="#fff";ctx.shadowBlur=18;ctx.shadowColor="#6dfcff";ctx.lineWidth=3;ctx.beginPath();for(let z=0;z<=1;z+=.03){let x=laneX(l,z),y=roadY(z);if(z===0)ctx.moveTo(x,y);else ctx.lineTo(x,y)}ctx.stroke()}ctx.shadowBlur=0;
+ // checker edge
+ const segs=22;for(let i=0;i<segs;i++){let z=i/segs,y=roadY(z),z2=(i+1)/segs,y2=roadY(z2);for(const side of [-1,1]){let h1=Math.min(W*.09,105)+(Math.min(W*.46,520)-Math.min(W*.09,105))*z;let h2=Math.min(W*.09,105)+(Math.min(W*.46,520)-Math.min(W*.09,105))*z2;ctx.fillStyle=i%2?"#fff":"#111";ctx.beginPath();ctx.moveTo(W/2+side*h1,y);ctx.lineTo(W/2+side*(h1+13),y);ctx.lineTo(W/2+side*(h2+13),y2);ctx.lineTo(W/2+side*h2,y2);ctx.fill()}}
+ // dashed center perspective
+ ctx.strokeStyle="rgba(255,255,255,.45)";ctx.lineWidth=2;ctx.setLineDash([10,16]);ctx.beginPath();ctx.moveTo(W/2,horizon);ctx.lineTo(W/2,bottom);ctx.stroke();ctx.setLineDash([]);
+ // speed streaks
+ for(let i=0;i<18;i++){let z=(i*.071+state.roadPos*2)%1,y=roadY(z),x=W/2+(Math.random()-.5)*Math.min(W*.8,850)*z;ctx.strokeStyle=`hsla(${(i*35+state.rainbowShift)%360},100%,75%,${.15+.4*z})`;ctx.lineWidth=1+3*z;ctx.beginPath();ctx.moveTo(x,y);ctx.lineTo(x+(x-W/2)*.05,y+25*z);ctx.stroke()}
+}
+
+function drawMarioKart(){
+ const x=laneX(state.lane,.98),y=H*.82,scale=Math.min(1,W/900);
+ ctx.save();ctx.translate(x,y);ctx.scale(scale,scale);
+ if(state.nitro>0&&state.nitroActive){for(let i=0;i<8;i++){ctx.fillStyle=choice(["#ffed32","#ff7b22","#ff3344"]);ctx.beginPath();ctx.arc((Math.random()-.5)*55,55+Math.random()*28,3+Math.random()*6,0,Math.PI*2);ctx.fill()}}
+ // aura
+ const aura=ctx.createRadialGradient(0,20,10,0,20,80);aura.addColorStop(0,"rgba(255,255,255,.65)");aura.addColorStop(1,"rgba(40,210,255,0)");ctx.fillStyle=aura;ctx.beginPath();ctx.arc(0,20,80,0,Math.PI*2);ctx.fill();
+ // wheels
+ for(const wx of [-32,32]){ctx.fillStyle="#151b2b";ctx.beginPath();ctx.ellipse(wx,38,13,25,0,0,Math.PI*2);ctx.fill();ctx.strokeStyle="#21d8ff";ctx.lineWidth=4;ctx.stroke();ctx.strokeStyle="#ef3340";ctx.lineWidth=2;ctx.stroke()}
+ // kart body
+ const body=ctx.createLinearGradient(-50,0,50,40);body.addColorStop(0,"#b90d2f");body.addColorStop(.45,"#ff3c4f");body.addColorStop(1,"#7d0a2d");ctx.fillStyle=body;ctx.beginPath();ctx.roundRect(-48,4,96,42,18);ctx.fill();ctx.strokeStyle="#fff";ctx.lineWidth=3;ctx.stroke();
+ // white nose
+ ctx.fillStyle="#fff";ctx.beginPath();ctx.ellipse(0,7,23,11,0,0,Math.PI*2);ctx.fill();
+ // M badge
+ ctx.fillStyle="#e21d3f";ctx.beginPath();ctx.arc(0,-3,17,0,Math.PI*2);ctx.fill();ctx.fillStyle="#fff";ctx.font="bold 17px Arial";ctx.textAlign="center";ctx.fillText("M",0,3);
+ // driver body/head
+ ctx.fillStyle="#e63a32";ctx.beginPath();ctx.roundRect(-18,-42,36,29,12);ctx.fill();
+ ctx.fillStyle="#ffc7a0";ctx.beginPath();ctx.arc(0,-53,18,0,Math.PI*2);ctx.fill();
+ // ears
+ ctx.fillStyle="#ffc7a0";ctx.beginPath();ctx.arc(-18,-52,6,0,Math.PI*2);ctx.arc(18,-52,6,0,Math.PI*2);ctx.fill();
+ // hat
+ ctx.fillStyle="#e31f3e";ctx.beginPath();ctx.ellipse(0,-69,25,13,0,0,Math.PI*2);ctx.fill();ctx.beginPath();ctx.arc(0,-70,19,Math.PI,Math.PI*2);ctx.fill();
+ ctx.fillStyle="#fff";ctx.beginPath();ctx.arc(0,-70,9,0,Math.PI*2);ctx.fill();ctx.fillStyle="#e31f3e";ctx.font="bold 12px Arial";ctx.fillText("M",0,-66);
+ // hair/moustache
+ ctx.fillStyle="#3a2119";ctx.beginPath();ctx.arc(-12,-55,8,0,Math.PI*2);ctx.arc(12,-55,8,0,Math.PI*2);ctx.fill();ctx.beginPath();ctx.ellipse(0,-46,13,7,0,0,Math.PI*2);ctx.fill();
+ ctx.fillStyle="#222";ctx.beginPath();ctx.arc(-6,-55,2,0,Math.PI*2);ctx.arc(6,-55,2,0,Math.PI*2);ctx.fill();
+ ctx.restore();
+}
+
+function drawObject(o){
+ const z=o.z,x=laneX(o.lane,z),y=roadY(z),sc=.25+.95*z;
+ ctx.save();ctx.translate(x,y);ctx.scale(sc,sc);
+ if(o.type==="coin"){ctx.shadowBlur=18;ctx.shadowColor="#ffe83d";const g=ctx.createLinearGradient(-12,0,12,0);g.addColorStop(0,"#f6a400");g.addColorStop(.5,"#fff27a");g.addColorStop(1,"#e99a00");ctx.fillStyle=g;ctx.beginPath();ctx.ellipse(0,-25,12,18,0,0,Math.PI*2);ctx.fill();ctx.strokeStyle="#fff5a0";ctx.lineWidth=2;ctx.stroke();ctx.shadowBlur=0}
+ if(o.type==="banana"){ctx.strokeStyle="#ffd62e";ctx.lineWidth=10;ctx.lineCap="round";ctx.beginPath();ctx.arc(0,-22,22,.2,2.7);ctx.stroke();ctx.strokeStyle="#8c641c";ctx.lineWidth=3;ctx.beginPath();ctx.arc(0,-22,22,.2,2.7);ctx.stroke()}
+ if(o.type==="shell"){ctx.fillStyle="#eaffff";ctx.strokeStyle="#ff4d71";ctx.lineWidth=4;ctx.beginPath();ctx.arc(0,-23,18,0,Math.PI*2);ctx.fill();ctx.stroke();ctx.fillStyle="#ff4d71";ctx.beginPath();ctx.arc(0,-23,8,0,Math.PI*2);ctx.fill();ctx.strokeStyle="#7c55ff";ctx.lineWidth=3;for(let a=0;a<8;a++){ctx.beginPath();ctx.moveTo(0,-23);ctx.lineTo(Math.cos(a*Math.PI/4)*16,-23+Math.sin(a*Math.PI/4)*16);ctx.stroke()}}
+ ctx.restore();
+}
+
+function spawnObject(){const r=Math.random();state.objects.push({type:r<.48?"coin":r<.74?"banana":"shell",lane:choice([-1,0,1]),z:.03})}
+function spawnFeverCoins(){for(let i=0;i<10;i++)state.objects.push({type:"coin",lane:choice([-1,0,1]),z:-i*.07})}
+
+function makeQuestion(){
+ let max=state.diff==="easy"?10:state.diff==="medium"?20:100;
+ let a=rand(1,max),b=rand(1,max),op=Math.random()<.52?"+":"-";
+ if(op==="-"&&b>a)[a,b]=[b,a];
+ const ans=op==="+"?a+b:a-b;
+ const vals=new Set([ans]);while(vals.size<4){let d=rand(1,Math.max(3,Math.ceil(max*.25)));vals.add(ans+(Math.random()<.5?-d:d))}
+ return {text:`${a} ${op} ${b} = ?`,answer:ans,options:[...vals].sort(()=>Math.random()-.5)};
+}
+let currentQ=null;
+
+function openQuestion(){
+ if(state.question>=100)return;
+ state.waiting=true;state.paused=true;state.nitroActive=false;
+ currentQ=makeQuestion();
+ document.getElementById("qCounter").textContent=`โจทย์ข้อที่ ${state.question+1} / 100`;
+ document.getElementById("question").textContent=currentQ.text;
+ document.getElementById("retryText").classList.add("hidden-ui");
+ const box=document.getElementById("choices");box.innerHTML="";
+ currentQ.options.forEach((v,i)=>{const b=document.createElement("button");b.className="choice rounded-2xl p-4 text-2xl font-black bg-white/10 border border-white/15 hover:bg-white/20";b.textContent=`${i+1}. ${v}`;b.onclick=()=>answer(v,b);box.appendChild(b)});
+ document.getElementById("questionModal").classList.remove("hidden-ui");
+}
+function answer(v,button){
+ if(!state.waiting)return;
+ if(v===currentQ.answer){
+  sfx.correct();state.correct++;state.question++;state.combo=clamp(state.combo+1,1,10);state.score+=100*state.combo*(state.fever?2:1);state.nitro=clamp(state.nitro+14,0,100);
+  document.getElementById("retryText").classList.add("hidden-ui");
+  button.classList.add("bg-emerald-500/50");
+  state.waiting=false;
+  setTimeout(()=>{document.getElementById("questionModal").classList.add("hidden-ui");state.paused=false;updateHUD();
+    if(state.question%10===0)startFever();
+    if(state.question>=100)finish();
+  },360);
+ }else{
+  sfx.wrong();state.wrong++;state.combo=1;state.shake=.35;button.classList.add("bg-red-500/50");document.getElementById("retryText").classList.remove("hidden-ui");setTimeout(()=>button.classList.remove("bg-red-500/50"),280);updateHUD();
+ }
+}
+function startFever(){
+ state.fever=true;state.feverUntil=performance.now()+9000;state.nitro=100;spawnFeverCoins();
+ document.getElementById("feverSub").textContent=`${state.question} คำตอบถูก! ความเร็วสูง + คะแนน x2`;
+ document.getElementById("feverBanner").classList.remove("hidden-ui");setTimeout(()=>document.getElementById("feverBanner").classList.add("hidden-ui"),1800);
+}
+function finish(){
+ state.running=false;state.paused=true;sfx.win();
+ const acc=Math.round(state.correct/(state.correct+state.wrong)*100);
+ const stars=acc>=95?"⭐⭐⭐":acc>=80?"⭐⭐":"⭐";
+ document.getElementById("stars").textContent=stars;document.getElementById("finalScore").textContent=state.score.toLocaleString();document.getElementById("accuracy").textContent=acc+"%";document.getElementById("timeTaken").textContent=fmtTime(performance.now()-state.startTime);
+ document.getElementById("victoryModal").classList.remove("hidden-ui");
+}
+function updateHUD(){
+ score.textContent=state.score.toLocaleString();combo.textContent="x"+state.combo;coins.textContent=state.coins;progressText.textContent=`${state.question}/100`;progressBar.style.width=state.question+"%";nitroBar.style.width=state.nitro+"%";nitroText.textContent=Math.round(state.nitro)+"%";
+}
+function hitCheck(){
+ for(const o of state.objects){
+  if(o.z>.88&&o.z<1.02&&o.lane===state.lane){
+   if(o.type==="coin"){state.coins++;state.score+=50*(state.fever?2:1);state.nitro=clamp(state.nitro+8,0,100);sfx.coin();o.dead=true}
+   else if(!state.fever){state.score=Math.max(0,state.score-75);state.combo=1;state.speed*=.62;state.shake=.3;sfx.hit();o.dead=true}
+   else{o.dead=true}
+  }
+ }
+ state.objects=state.objects.filter(o=>!o.dead);
+}
+state.nitroActive=false;
+function activateNitro(){if(!state.running||state.paused||state.nitro<30||state.nitroActive)return;state.nitroActive=true;sfx.nitro();state.nitro-=30;setTimeout(()=>state.nitroActive=false,1700)}
+function move(dir){if(!state.running||state.paused)return;sfx.click();state.targetLane=clamp(state.targetLane+dir,-1,1)}
+function resetGame(){
+ state.running=true;state.paused=false;state.lane=0;state.targetLane=0;state.score=0;state.combo=1;state.coins=0;state.nitro=0;state.question=0;state.correct=0;state.wrong=0;state.waiting=false;state.fever=false;state.objects=[];state.particles=[];state.speed=.00045;state.startTime=performance.now();state.last=performance.now();state.roadPos=0;state.nitroActive=false;updateHUD();
+}
+function setDifficulty(d){
+ state.diff=d;document.querySelectorAll(".diff").forEach(b=>b.classList.toggle("ring-2",b.dataset.diff===d));document.querySelectorAll(".diff").forEach(b=>b.classList.toggle("ring-cyan-300",b.dataset.diff===d));sfx.click()
+}
+
+document.querySelectorAll(".diff").forEach(b=>b.addEventListener("click",()=>setDifficulty(b.dataset.diff)));
+document.getElementById("startBtn").onclick=()=>{sfx.init();sfx.click();document.getElementById("startModal").classList.add("hidden-ui");resetGame()};
+document.getElementById("againBtn").onclick=()=>{document.getElementById("victoryModal").classList.add("hidden-ui");document.getElementById("startModal").classList.remove("hidden-ui")};
+document.getElementById("muteBtn").onclick=()=>{sfx.muted=!sfx.muted;document.getElementById("muteBtn").textContent=sfx.muted?"🔇":"🔊";if(!sfx.muted)sfx.init()};
+function bindHold(id,fn){const b=document.getElementById(id);["pointerdown","touchstart"].forEach(e=>b.addEventListener(e,ev=>{ev.preventDefault();fn()}))}
+bindHold("leftBtn",()=>move(-1));bindHold("rightBtn",()=>move(1));bindHold("nitroBtn",activateNitro);
+
+addEventListener("keydown",e=>{
+ if(["ArrowLeft","ArrowRight"," ","1","2","3","4"].includes(e.key))e.preventDefault();
+ if(e.key==="ArrowLeft")move(-1);if(e.key==="ArrowRight")move(1);if(e.code==="Space")activateNitro();
+ if(state.waiting&&["1","2","3","4"].includes(e.key)){const i=+e.key-1;const btn=document.querySelectorAll(".choice")[i];if(btn)btn.click()}
+});
+
+function update(dt,t){
+ if(!state.running)return;
+ if(state.fever&&t>state.feverUntil)state.fever=false;
+ if(state.paused)return;
+ state.lane+=(state.targetLane-state.lane)*Math.min(1,dt*.012);
+ const base=state.fever?0.00105:state.nitroActive?0.00115:.00045;
+ state.speed += (base-state.speed)*Math.min(1,dt*.002);
+ state.roadPos=(state.roadPos+state.speed*dt)%1;
+ state.spawnT-=dt;if(state.spawnT<=0){spawnObject();state.spawnT=state.fever?300:650+Math.random()*500}
+ for(const o of state.objects)o.z+=state.speed*dt*1.25;
+ hitCheck();state.objects=state.objects.filter(o=>o.z<1.18);
+ if(Math.random()<.35*dt/16){state.particles.push({x:W/2+(Math.random()-.5)*W*.7,y:H*.75+Math.random()*H*.2,vx:(Math.random()-.5)*2,vy:-Math.random()*3,life:1})}
+ for(const p of state.particles){p.x+=p.vx;p.y+=p.vy;p.life-=dt/650}state.particles=state.particles.filter(p=>p.life>0);
+ if(state.shake>0)state.shake-=dt/1000;
+ // checkpoint trigger
+ if(state.question<100&&!state.waiting&&state.roadPos>.96){state.roadPos=.05;openQuestion()}
+ updateHUD();
+}
+function drawParticles(){for(const p of state.particles){ctx.globalAlpha=p.life;ctx.fillStyle=choice(["#fff","#ffec4d","#ff6b35","#39e8ff"]);ctx.beginPath();ctx.arc(p.x,p.y,2+4*p.life,0,Math.PI*2);ctx.fill()}ctx.globalAlpha=1}
+function draw(t){
+ ctx.save();
+ if(state.shake>0)ctx.translate((Math.random()-.5)*16,(Math.random()-.5)*12);
+ drawSky(t);drawTrack(t);
+ state.objects.sort((a,b)=>a.z-b.z).forEach(drawObject);
+ drawParticles();drawMarioKart();
+ // tiny speedometer
+ if(state.running&&!state.paused){ctx.fillStyle="rgba(0,0,0,.25)";ctx.beginPath();ctx.arc(W-60,H-60,36,0,Math.PI*2);ctx.fill();ctx.fillStyle="#fff";ctx.font="bold 13px system-ui";ctx.textAlign="center";ctx.fillText(state.nitroActive?"BOOST":"RACE",W-60,H-57);ctx.font="bold 18px system-ui";ctx.fillText(Math.round(state.speed*100000),W-60,H-38)}
+ ctx.restore();
+}
+function loop(t){const dt=Math.min(40,t-state.last);state.last=t;state.rainbowShift=t*.05;update(dt,t);draw(t);requestAnimationFrame(loop)}
+requestAnimationFrame(loop);
+updateHUD();
+</script>
+</body>
+</html>
